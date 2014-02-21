@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <math.h>
 
 #define UNIT_TEST 1
 #define LOG_DIR "/tmp/stb_log"
@@ -40,15 +41,39 @@ char *file_today(void)
 }
 
 /**
- * Get the recent history file name. 
+ * Get the recent history file name.
  *
  * @param prior - the days prior to today.
  * For example, when we want to get the file name of the day
  * before yesterday, prior = 2.
  */
 char *get_file_name(int prior) {
-	// TODO: implement me!
-	return null;
+    char *str = (char *)malloc(30 * sizeof(char));  //dont worry about free since calling function will take care of malloc
+    if (!str) {
+		perror("malloc");
+		return NULL;
+	}
+
+    int temp_year, temp_day;
+
+    if(prior < 0 || prior > 365){   //makes sure prior does not access beyond past a year
+        perror("Incorrect # of days passed");
+        return NULL;
+    }
+
+    if(tms->tm_yday - prior <= 0){  //prior goes beyond this past year
+        temp_year = tms->tm_year + 1900 - 1;
+        if(temp_year % 4 == 0)  //last year was a leap year
+            temp_day = 366 + tms->tm_yday - prior;
+        else
+            temp_day = 365 + tms->tm_yday - prior;
+    }
+    else{
+        temp_year = tms->tm_year + 1900;
+        temp_day = tms->tm_yday - prior;
+    }
+    sprintf(str, "%s/%d-%03d", LOG_DIR, temp_year, temp_day)
+	return str;
 }
 
 /**
@@ -63,7 +88,7 @@ FILE *open_log(char *path)
 }
 
 /**
- * Open today's log file. 
+ * Open today's log file.
  * If the file does not exist, create a new one.
  */
 FILE *open_todays_log(void)
@@ -86,10 +111,10 @@ int close_log(FILE *fp)
 }
 
 /**
- * Read all messages in today's log file and 
+ * Read all messages in today's log file and
  * parse them for future use.
  */
-int parse_todays_log(void) 
+int parse_todays_log(void)
 {
 	FILE *fp = open_todays_log();
 	int retval = 0;
@@ -116,8 +141,34 @@ int parse_todays_log(void)
  * Count the number of sensor events from recent
  * @days files and return the total count number.
  */
-int parse_recent_logs(int days) {
-	// TODO: implement me!
+int parse_recent_logs(const int days) {
+    char *name;
+    FILE *fp;
+    int retval = 0;
+
+    for(int i = 1; i < days; i++){
+        name = get_file_name(i);       //need to deallocate it since calling function
+        fp = open_log(name);
+
+        if (!fp) {                     //should all days have logs?
+		perror("open log");
+		continue;
+        }
+        //parse info below based on file above, pending more info about how log files are setup
+        ssize_t readcnt = -1;
+        size_t size = 0;
+        char *line = NULL;
+
+        while ((readcnt = getline(&line, &size, fp)) != -1) {
+            retval += size;
+            // now just print them out.
+            printf("%s", line);
+        }
+        close_log(fp);
+        free(name);
+    }
+
+    return retval;
 }
 
 /**
@@ -142,7 +193,7 @@ int write_todays_log(char *str)
 		perror("close log");
 		return -1;
 	}
-	
+
 	return retval;
 }
 
@@ -163,7 +214,7 @@ char *asm_logmsg(char *kind)
 	struct tm *tms = localtime(&cur_time);
 
 	// will be freed by write_todays_log()
-	retval = (char *)malloc(len);  	
+	retval = (char *)malloc(len);
 	if (!retval) {
 		perror("malloc");
 		exit(errno);
@@ -182,7 +233,7 @@ int init_record(void)
 	// make appropriate log directory.
 	int status = 0;
 	if (access(LOG_DIR, F_OK)) {
-		status = mkdir(LOG_DIR, 
+		status = mkdir(LOG_DIR,
 				S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 	}
 
@@ -211,7 +262,7 @@ int main()
 		perror("Parse log");
 		exit(errno);
 	}
-	
+
 	return 0;
 }
 #endif
